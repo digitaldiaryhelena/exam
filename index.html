@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mis exámenes</title>
+<style>
+:root{--bg:#fff0f6;--card:#fff;--pink:#d6336c;--pink2:#fcc2d7;--soft:#ffdeeb;--ink:#4a1030;--mute:#9c5a78}
+*{box-sizing:border-box}
+body{margin:0;font-family:Georgia,serif;background:var(--bg);color:var(--ink);line-height:1.6}
+h1,h2,h3{font-weight:normal;margin:0 0 .5rem}
+header{padding:1.2rem 1.5rem;background:var(--pink);color:#fff}
+header h1{font-size:1.7rem;font-style:italic}
+main{display:grid;grid-template-columns:290px 1fr;gap:1.2rem;padding:1.2rem;max-width:1200px;margin:auto}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--pink2);border-radius:14px;padding:1.1rem}
+label{display:block;font-size:.9rem;color:var(--mute);margin:.6rem 0 .2rem}
+input,textarea,select{width:100%;font:inherit;padding:.5rem .6rem;border:1px solid var(--pink2);border-radius:8px;background:#fff;color:var(--ink)}
+textarea{min-height:130px;resize:vertical}
+button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:.55rem 1.1rem;background:var(--pink);color:#fff}
+button.ghost{background:var(--soft);color:var(--pink)}
+button:hover{filter:brightness(.93)}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.5;cursor:wait}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}
+details{margin-left:.7rem;border-left:2px solid var(--pink2);padding-left:.6rem}
+summary{cursor:pointer;padding:.15rem 0}
+.ex{display:flex;justify-content:space-between;gap:.4rem;padding:.2rem .4rem;border-radius:8px;cursor:pointer;font-size:.95rem}
+.ex:hover{background:var(--soft)}
+.ex button{padding:0 .5rem;background:none;color:var(--mute)}
+.q{border-top:1px dashed var(--pink2);padding:.8rem 0}
+.q ol{list-style:upper-alpha;margin:.3rem 0}
+.ans{display:none;color:var(--pink);font-size:.95rem}
+.show .ans{display:block}
+#msg{color:var(--pink);min-height:1.4rem}
+.muted{color:var(--mute);font-size:.9rem}
+@media print{header,aside,.noprint{display:none}main{display:block}section{border:0}}
+</style>
+</head>
+<body>
+<header><h1>Mis exámenes</h1></header>
+<main>
+<aside><section>
+  <h2>Archivo</h2>
+  <p class="muted">Curso › Trimestre › Tema</p>
+  <div id="tree"></div>
+</section></aside>
+
+<div>
+<section class="noprint">
+  <h2>Nuevo examen</h2>
+  <label>Texto del material</label>
+  <textarea id="text" placeholder="Pega apuntes, un artículo o la transcripción de un vídeo…"></textarea>
+  <label>Archivos (.pdf, .txt, .md, .srt, .vtt)</label>
+  <input type="file" id="files" multiple accept=".pdf,.txt,.md,.srt,.vtt">
+  <p class="muted">Para un vídeo, pega su transcripción o sube sus subtítulos (.srt / .vtt).</p>
+  <div class="row">
+    <div><label>Tipo test</label><input type="number" id="n1" value="5" min="0" max="15"></div>
+    <div><label>Verdadero/falso</label><input type="number" id="n2" value="3" min="0" max="10"></div>
+    <div><label>Respuesta corta</label><input type="number" id="n3" value="2" min="0" max="8"></div>
+  </div>
+  <label>Nivel</label>
+  <select id="nivel"><option>Básico</option><option selected>Intermedio</option><option>Avanzado</option></select>
+  <div class="bar"><button id="go">Generar examen</button></div>
+  <p id="msg" role="status"></p>
+</section>
+
+<section id="exam" style="margin-top:1.2rem;display:none">
+  <h2 id="etitle"></h2>
+  <div id="qs"></div>
+  <div class="noprint" style="margin-top:1rem;border-top:2px solid var(--pink2);padding-top:.8rem">
+    <div class="row">
+      <div><label>Curso</label><input id="curso" list="cursos" placeholder="Biología 1.º"></div>
+      <div><label>Trimestre</label><select id="trim"><option>1.er trimestre</option><option>2.º trimestre</option><option>3.er trimestre</option></select></div>
+      <div><label>Tema</label><input id="tema" list="temas" placeholder="La célula"></div>
+    </div>
+    <datalist id="cursos"></datalist><datalist id="temas"></datalist>
+    <div class="bar">
+      <button id="save">Guardar en carpeta</button>
+      <button class="ghost" id="key">Ver / ocultar respuestas</button>
+      <button class="ghost" id="print">Imprimir</button>
+    </div>
+  </div>
+</section>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let cur=null, db=[];
+try{db=JSON.parse(localStorage.getItem("examenes")||"[]")}catch(e){}
+const persist=()=>{try{localStorage.setItem("examenes",JSON.stringify(db))}catch(e){$("msg").textContent="No se pudo guardar en este navegador."}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function renderTree(){
+  const t={};
+  db.forEach(e=>{((t[e.curso]??={})[e.trim]??={})[e.tema]??=[]).push(e)});
+  const names=Object.keys(t).sort();
+  $("tree").innerHTML=names.length?names.map(c=>`<details open><summary>${esc(c)}</summary>${Object.keys(t[c]).sort().map(tr=>`<details open><summary>${esc(tr)}</summary>${Object.keys(t[c][tr]).sort().map(te=>`<details open><summary>${esc(te)}</summary>${t[c][tr][te].map(e=>`<div class="ex" data-open="${e.id}"><span>${esc(e.titulo)}</span><button data-del="${e.id}" aria-label="Borrar">✕</button></div>`).join("")}</details>`).join("")}</details>`).join("")}</details>`).join(""):'<p class="muted">Aún no hay exámenes guardados. Genera uno y guárdalo en una carpeta.</p>';
+  $("cursos").innerHTML=names.map(n=>`<option value="${esc(n)}">`).join("");
+  $("temas").innerHTML=[...new Set(db.map(e=>e.tema))].map(n=>`<option value="${esc(n)}">`).join("");
+}
+function showExam(e){
+  cur=e;$("exam").style.display="block";$("exam").classList.remove("show");
+  $("etitle").textContent=e.titulo;
+  $("qs").innerHTML=e.preguntas.map((q,i)=>{
+    let body=`<b>${i+1}.</b> ${esc(q.enunciado)}`,a="";
+    if(q.tipo==="test"){body+=`<ol>${q.opciones.map(o=>`<li>${esc(o)}</li>`).join("")}</ol>`;a="Correcta: "+"ABCD"[q.correcta]}
+    else if(q.tipo==="vf"){body+=`<p>☐ Verdadero &nbsp; ☐ Falso</p>`;a=q.correcta?"Verdadero":"Falso"}
+    else{body+=`<p>______________________________________</p>`;a=q.respuesta}
+    return `<div class="q">${body}<div class="ans"><b>${esc(a)}.</b> ${esc(q.explicacion||"")}</div></div>`}).join("");
+  $("exam").scrollIntoView({behavior:"smooth"});
+}
+const b64=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(",")[1]);x.readAsDataURL(f)});
+$("go").onclick=async()=>{
+  $("msg").textContent="Leyendo material…";$("go").disabled=true;
+  try{
+    let text=$("text").value.trim(),pdfs=[];
+    for(const f of $("files").files){
+      if(f.name.toLowerCase().endsWith(".pdf"))pdfs.push(await b64(f));
+      else text+="\n\n"+(await f.text()).replace(/^\d+\s*$|^\d\d:\d\d.*-->.*$|^WEBVTT/gm,"");
+    }
+    if(!text&&!pdfs.length){$("msg").textContent="Pega texto o sube un archivo para empezar.";return}
+    $("msg").textContent="Generando el examen… puede tardar unos segundos.";
+    const r=await fetch("/.netlify/functions/generate",{method:"POST",body:JSON.stringify({text:text.slice(0,60000),pdfs,opts:{test:+$("n1").value,vf:+$("n2").value,corta:+$("n3").value,nivel:$("nivel").value}})});
+    const d=await r.json();
+    if(!r.ok||d.error)throw new Error(d.error||"Error desconocido");
+    $("msg").textContent="";showExam(d);
+  }catch(e){$("msg").textContent=e.message}
+  finally{$("go").disabled=false}
+};
+$("save").onclick=()=>{
+  if(!cur)return;
+  const curso=$("curso").value.trim(),tema=$("tema").value.trim();
+  if(!curso||!tema){$("msg").textContent="Indica el curso y el tema para archivarlo.";$("curso").focus();return}
+  db.push({...cur,id:Date.now(),curso,trim:$("trim").value,tema});persist();renderTree();
+  $("msg").textContent="Guardado en "+curso+" › "+$("trim").value+" › "+tema;
+};
+$("key").onclick=()=>$("exam").classList.toggle("show");
+$("print").onclick=()=>print();
+$("tree").onclick=e=>{
+  const d=e.target.closest("[data-del]");
+  if(d){if(confirm("¿Borrar este examen?")){db=db.filter(x=>x.id!=d.dataset.del);persist();renderTree()}return}
+  const o=e.target.closest("[data-open]");
+  if(o)showExam(db.find(x=>x.id==o.dataset.open));
+};
+renderTree();
+</script>
+</body>
+</html>

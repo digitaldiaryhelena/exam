@@ -1,0 +1,4 @@
+PUBLICAR EN NETLIFY
+1. Sube esta carpeta a Netlify (Add new site > Deploy manually, o conecta un repositorio de GitHub).
+2. En Site configuration > Environment variables añade ANTHROPIC_API_KEY con tu clave de console.anthropic.com.
+3. Vuelve a desplegar. Listo.
